@@ -40,27 +40,24 @@
       }
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      .boarding-pass-perforation {
-        background-image: radial-gradient(circle at 0 10px, transparent 10px, white 10px),
-                          radial-gradient(circle at 100% 10px, transparent 10px, white 10px);
-        background-position: left bottom, right bottom;
-        background-size: 50% 20px;
-        background-repeat: no-repeat;
-      }
     </style>
 <script type="importmap">
 {
   "imports": {
     "react/": "https://esm.sh/react@^19.2.4/",
     "react": "https://esm.sh/react@^19.2.4",
-    "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "firebase/": "https://esm.sh/firebase@^12.9.0/",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
+    "@vitejs/plugin-react-swc": "https://esm.sh/@vitejs/plugin-react-swc@^4.2.3"
   }
 }
 </script>
 </head>
 <body class="text-earth-brown overflow-x-hidden">
     <div id="root"></div>
+    <!-- Vite 會在 build 時自動將此路徑轉換為編譯後的 .js 檔案 -->
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>
