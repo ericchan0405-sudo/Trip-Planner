@@ -1,76 +1,44 @@
-import { GoogleGenAI, Type } from "@google/genai";
 
-// 使用 Google Gemini API 獲取旅行建議
+// 模擬旅行建議服務 (無需 API Key)
 export const getTravelSuggestions = async (destination: string, currentPlan: string) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // 模擬網路延遲
+  await new Promise(resolve => setTimeout(resolve, 1000));
   
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `你是一位專業的旅遊規劃師。請根據目的地「${destination}」以及目前的行程規劃「${currentPlan}」，提供 3 個實用且獨特的在地建議（例如必吃隱藏版美食、避開人群的私房景點或實用的購物提示）。請用繁體中文回答。`,
-    });
-    
-    return response.text || "目前無法取得建議。";
-  } catch (error) {
-    console.error("Gemini Suggestion Error:", error);
-    return "獲取建議時發生錯誤，請稍後再試。";
-  }
+  return `[模擬建議] 針對您的 ${destination} 之旅：
+1. 推薦前往當地巷弄內的私房咖啡廳，避開觀光人潮。
+2. 傍晚時分可以到河岸邊散步，景色非常優美。
+3. 記得攜帶一雙舒適的走路鞋，這座城市非常適合漫遊。`;
 };
 
-// 使用 Google Gemini API 辨識預訂憑證（機票或飯店確認單）
+// 模擬憑證辨識服務 (無需 API Key)
 export const analyzeBookingVoucher = async (base64Data: string, mimeType: string): Promise<any> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // 模擬辨識延遲
+  await new Promise(resolve => setTimeout(resolve, 2000));
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-lite-latest',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Data,
-            },
-          },
-          {
-            text: '請分析這張旅遊憑證（如機票或飯店確認單），並提取相關資訊。如果是機票，請將 type 設為 "flight"，location 設為出發地機場代碼。如果是飯店，請將 type 設為 "stay"。請回傳 JSON 格式。',
-          },
-        ],
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            type: { type: Type.STRING, description: 'flight 或 stay' },
-            title: { type: Type.STRING, description: '飯店名稱或航班號碼' },
-            provider: { type: Type.STRING, description: '供應商（如航空公司或訂房平台）' },
-            startDate: { type: Type.STRING, description: '開始日期或時間（格式 YYYY-MM-DD 或 YYYY-MM-DD HH:mm）' },
-            endDate: { type: Type.STRING, description: '結束日期或時間（格式 YYYY-MM-DD 或 YYYY-MM-DD HH:mm）' },
-            location: { type: Type.STRING, description: '地點（飯店地址或機場代碼）' },
-            cost: { type: Type.NUMBER, description: '總金額' },
-            note: { type: Type.STRING, description: '額外備註' },
-          },
-          required: ['type', 'title'],
-        },
-      },
-    });
-
-    const text = response.text;
-    if (!text) throw new Error("Empty response from Gemini");
-    return JSON.parse(text);
-  } catch (error) {
-    console.error("Gemini Analysis Error:", error);
-    // 回傳預設結構以利前端處理
+  // 根據模擬邏輯回傳資料
+  const isStay = Math.random() > 0.4; // 隨機模擬飯店或機票
+  
+  if (isStay) {
     return {
       type: "stay",
-      title: "辨識失敗 (請點擊修改)",
-      provider: "自動辨識",
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date().toISOString().split('T')[0],
-      location: "無法自動提取資訊",
-      cost: 0,
-      note: "辨識過程發生錯誤，請手動確認資訊。"
+      title: "模擬精品飯店 (Mock Hotel)",
+      provider: "Agoda",
+      startDate: "2024-12-24",
+      endDate: "2024-12-28",
+      location: "東京都新宿區",
+      cost: 12000,
+      note: "這是 AI 模擬辨識的結果，您可以點擊進行修改。"
+    };
+  } else {
+    return {
+      type: "flight",
+      title: "JL 802",
+      provider: "日本航空",
+      startDate: "2024-12-24 10:00",
+      endDate: "2024-12-24 14:30",
+      location: "NRT", // 機場代碼
+      cost: 5000,
+      note: "這是 AI 模擬辨識的結果，您可以點擊進行修改。"
     };
   }
 };
