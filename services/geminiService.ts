@@ -21,13 +21,13 @@ export const analyzeBookingVoucher = async (base64Data: string, mimeType: string
   if (isStay) {
     return {
       type: "stay",
-      title: "模擬精品飯店 (Mock Hotel)",
-      provider: "Agoda",
+      title: "辨識成功的飯店名稱 (AI 模擬)",
+      provider: "住宿預訂", // 不再預設 Agoda
       startDate: "2024-12-24",
       endDate: "2024-12-28",
       location: "東京都新宿區",
-      cost: 12000,
-      note: "這是 AI 模擬辨識的結果，您可以點擊進行修改。"
+      cost: 12500, // 回傳辨識出的金額
+      note: "這是 AI 模擬辨識出的金額，您可以點擊進入卡片進行修改。"
     };
   } else {
     return {
@@ -38,7 +38,7 @@ export const analyzeBookingVoucher = async (base64Data: string, mimeType: string
       endDate: "2024-12-24 14:30",
       location: "NRT", // 機場代碼
       cost: 5000,
-      note: "這是 AI 模擬辨識的結果，您可以點擊進行修改。"
+      note: "這是 AI 模擬辨識出的航班，點擊可編輯內容。"
     };
   }
 };

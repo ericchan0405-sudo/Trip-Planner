@@ -25,6 +25,7 @@ const Members: React.FC<MembersProps> = ({
   const [isEditingPin, setIsEditingPin] = useState(false);
   const [tempPin, setTempPin] = useState(trip.accessPin || '');
   const [showIosGuide, setShowIosGuide] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   // Profile Editing State
   const [editingMember, setEditingMember] = useState<TripMember | null>(null);
@@ -47,6 +48,41 @@ const Members: React.FC<MembersProps> = ({
     } else {
       onInstall?.();
     }
+  };
+
+  const handleCopyLink = () => {
+    // 動態生成邀請網址
+    const inviteUrl = `${window.location.origin}/join/${trip.id}`;
+    
+    // 使用 Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(inviteUrl).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(err => {
+        console.error('複製失敗: ', err);
+        fallbackCopyTextToClipboard(inviteUrl);
+      });
+    } else {
+      fallbackCopyTextToClipboard(inviteUrl);
+    }
+  };
+
+  // 備援複製方案 (針對舊款瀏覽器或特殊環境)
+  const fallbackCopyTextToClipboard = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      alert('自動複製失敗，請手動複製連結唷。');
+    }
+    document.body.removeChild(textArea);
   };
 
   const openEditProfile = (member: TripMember) => {
@@ -113,7 +149,6 @@ const Members: React.FC<MembersProps> = ({
               )}
             </div>
             <h4 className="font-black text-sm mb-1 truncate px-2">{member.name}</h4>
-            {/* 不需要稱號 - 已移除角色顯示 */}
           </Card>
         ))}
       </div>
@@ -177,12 +212,26 @@ const Members: React.FC<MembersProps> = ({
             分享邀請網址給夥伴，他們在加入時需要輸入您設定的 <span className="underline decoration-accent-orange">入團密碼</span> 才能進入此旅程。
           </p>
           
-          <div className="bg-white/10 p-4 rounded-2xl flex justify-between items-center mb-4 border border-white/5">
-            <div className="flex-1">
-              <p className="text-[8px] font-black uppercase tracking-[0.2em] text-accent-orange mb-1">邀請連結</p>
-              <code className="text-[10px] font-black text-leaf-green break-all">komorebi.app/join/{trip.id}</code>
+          <div className="bg-white/10 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border border-white/5 relative group/link">
+            <div className="flex-1 min-w-0 w-full">
+              <p className="text-[8px] font-black uppercase tracking-[0.2em] text-accent-orange mb-1">邀請連結 (點擊文字也可複製)</p>
+              <code 
+                onClick={handleCopyLink}
+                className="text-[10px] font-black text-leaf-green break-all cursor-pointer block hover:text-white transition-colors"
+              >
+                {window.location.origin}/join/{trip.id}
+              </code>
             </div>
-            <Button className="ml-3 !px-3 !py-2 !text-[10px] !bg-white !text-earth-brown !shadow-none">複製</Button>
+            <button 
+              onClick={handleCopyLink}
+              className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                copied 
+                  ? 'bg-leaf-green text-white shadow-[0_0_15px_rgba(136,164,124,0.4)]' 
+                  : 'bg-white text-earth-brown shadow-soft active:scale-95'
+              }`}
+            >
+              {copied ? <><i className="fas fa-check mr-1"></i> 已複製</> : <><i className="fas fa-copy mr-1"></i> 複製連結</>}
+            </button>
           </div>
 
           <div className="mt-6 pt-4 border-t border-white/10">

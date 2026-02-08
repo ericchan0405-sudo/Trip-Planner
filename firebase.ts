@@ -1,11 +1,10 @@
 
-// This is a template for Firebase configuration. 
-// In a real app, you would use environment variables.
 import { initializeApp } from 'firebase/app';
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
 
+// 請在此處填入您的 Firebase 專案設定
 const firebaseConfig = {
   apiKey: "YOUR_API_KEY",
   authDomain: "YOUR_AUTH_DOMAIN",
@@ -16,21 +15,15 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// 使用新版的 initializeFirestore 並設定持久性快取，解決棄用警告
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
+
 export const storage = getStorage(app);
 export const auth = getAuth(app);
-
-// Enable offline persistence for PWA support
-try {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn("Offline persistence failed (multiple tabs open)");
-    } else if (err.code === 'unimplemented') {
-      console.warn("Offline persistence not supported by browser");
-    }
-  });
-} catch (e) {
-  // Silence persistence errors in demo environments
-}
 
 export default app;

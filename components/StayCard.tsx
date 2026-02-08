@@ -5,7 +5,7 @@ import { Card } from './UI';
 interface StayCardProps {
   id: string;
   hotelName: string;
-  provider: string;
+  provider?: string;
   checkIn: string;
   checkOut: string;
   location: string;
@@ -18,7 +18,6 @@ interface StayCardProps {
 const StayCard: React.FC<StayCardProps> = ({
   id,
   hotelName,
-  provider,
   checkIn,
   checkOut,
   location,
@@ -57,12 +56,11 @@ const StayCard: React.FC<StayCardProps> = ({
       </div>
 
       <div className="flex gap-4 mb-4">
-        <div className="w-12 h-12 rounded-2xl bg-purple-100 flex items-center justify-center text-purple-500 shrink-0">
+        <div className="w-12 h-12 rounded-2xl bg-purple-100 flex items-center justify-center text-purple-500 shrink-0 shadow-inner">
           <i className="fas fa-hotel text-xl"></i>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-widest text-purple-400 mb-0.5">{provider || 'Accommodation'}</p>
-          <h4 className="text-lg font-black text-earth-brown truncate">{hotelName}</h4>
+        <div className="flex-1 min-w-0 flex items-center">
+          <h4 className="text-lg font-black text-earth-brown truncate leading-tight">{hotelName}</h4>
         </div>
       </div>
 
@@ -85,11 +83,13 @@ const StayCard: React.FC<StayCardProps> = ({
       <div className="flex justify-between items-center pt-3 border-t-2 border-dashed border-shadow-green/50">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold text-shadow-green uppercase">Total Cost</span>
-          <span className="text-base font-black text-leaf-green">{cost ? `HK$ ${cost.toLocaleString()}` : '尚未確認'}</span>
+          <span className="text-base font-black text-leaf-green">
+            {cost ? `HK$ ${Number(cost).toLocaleString()}` : '尚未填寫金額'}
+          </span>
         </div>
         {note && (
           <div className="text-[10px] text-earth-brown/40 italic flex items-center gap-1">
-            <i className="fas fa-info-circle"></i> 備註已儲存
+            <i className="fas fa-info-circle"></i> 備註
           </div>
         )}
       </div>
