@@ -5,8 +5,6 @@ import FlightCard from '../components/FlightCard';
 import StayCard from '../components/StayCard';
 import { AIRPORTS } from '../constants';
 import { Trip } from '../types';
-import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 interface DeleteModal {
   isOpen: boolean;
@@ -27,6 +25,10 @@ interface BookingsProps {
 }
 
 const Bookings: React.FC<BookingsProps> = ({ trip }) => {
+  const storageKeyFlights = `komorebi_flights_${trip.id}`;
+  const storageKeyStays = `komorebi_stays_${trip.id}`;
+  const storageKeyOther = `komorebi_other_bookings_${trip.id}`;
+
   const [usePin, setUsePin] = useState(() => {
     const stored = localStorage.getItem('komorebi_use_pin');
     return stored === null ? false : stored === 'true';
@@ -41,20 +43,53 @@ const Bookings: React.FC<BookingsProps> = ({ trip }) => {
     return localStorage.getItem('komorebi_trip_pin') || '007';
   });
 
-  const [bookings, setBookings] = useState<any[]>([]);
+  // State initialization with LocalStorage
+  const [flights, setFlights] = useState<any[]>(() => {
+    const saved = localStorage.getItem(storageKeyFlights);
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'default-flight',
+        provider: 'EVA AIR 長榮航空',
+        title: 'BR 198',
+        origin: { code: 'TPE', city: '台北桃園', time: '08:50' },
+        destination: { code: 'NRT', city: '東京成田', time: '13:15' },
+        passenger: 'WANG XIAO MING, LIN MEI MEI',
+        classType: 'Premium Economy',
+        gate: 'C7',
+        seat: '22K, 22J',
+        date: '2024.10.10',
+        duration: '3h 25m',
+        type: 'flight'
+      }
+    ];
+  });
+  
+  const [stays, setStays] = useState<any[]>(() => {
+    const saved = localStorage.getItem(storageKeyStays);
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'default-stay',
+        title: '新宿格拉斯麗飯店 (哥吉拉飯店)',
+        provider: '住宿預訂',
+        startDate: '2024-10-10',
+        endDate: '2024-10-15',
+        location: '1-19-1 Kabukicho, Shinjuku, Tokyo',
+        cost: 15800,
+        type: 'stay',
+        note: '哥吉拉頭像在 8 樓露台'
+      }
+    ];
+  });
 
-  // Firestore Real-time Sync
-  useEffect(() => {
-    const q = query(collection(db, 'bookings'), where('tripId', '==', trip.id));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    return () => unsub();
-  }, [trip.id]);
+  const [otherBookings, setOtherBookings] = useState<any[]>(() => {
+    const saved = localStorage.getItem(storageKeyOther);
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  const flights = bookings.filter(b => b.type === 'flight');
-  const stays = bookings.filter(b => b.type === 'stay');
-  const otherBookings = bookings.filter(b => b.type === 'other');
+  // Persistence Effects
+  useEffect(() => { localStorage.setItem(storageKeyFlights, JSON.stringify(flights)); }, [flights, storageKeyFlights]);
+  useEffect(() => { localStorage.setItem(storageKeyStays, JSON.stringify(stays)); }, [stays, storageKeyStays]);
+  useEffect(() => { localStorage.setItem(storageKeyOther, JSON.stringify(otherBookings)); }, [otherBookings, storageKeyOther]);
 
   const [deleteModal, setDeleteModal] = useState<DeleteModal>({ isOpen: false, targetId: '', targetType: 'other', title: '' });
   const [editModal, setEditModal] = useState<EditModal>({ isOpen: false, type: 'flight', data: null });
@@ -83,7 +118,7 @@ const Bookings: React.FC<BookingsProps> = ({ trip }) => {
   };
 
   const openManualAdd = (type: 'flight' | 'stay' | 'other') => {
-    const initialData: any = { type, provider: '', title: '', tripId: trip.id };
+    const initialData: any = { id: `manual-${Date.now()}`, type, provider: '', title: '' };
     if (type === 'flight') {
       initialData.origin = { code: '', city: '', time: '09:00' };
       initialData.destination = { code: '', city: '', time: '12:00' };
@@ -101,19 +136,18 @@ const Bookings: React.FC<BookingsProps> = ({ trip }) => {
     setEditModal({ isOpen: true, type, data: initialData, isNew: true });
   };
 
-  const handleSaveEntry = async () => {
-    const { data, isNew } = editModal;
-    try {
-      if (isNew) {
-        await addDoc(collection(db, 'bookings'), data);
-      } else {
-        const { id, ...updateData } = data;
-        await updateDoc(doc(db, 'bookings', id), updateData);
-      }
-      setEditModal({ ...editModal, isOpen: false });
-    } catch (e) {
-      alert("儲存失敗");
+  const handleSaveEntry = () => {
+    const { data, type, isNew } = editModal;
+    if (isNew) {
+      if (type === 'flight') setFlights(prev => [data, ...prev]);
+      else if (type === 'stay') setStays(prev => [data, ...prev]);
+      else setOtherBookings(prev => [data, ...prev]);
+    } else {
+      if (type === 'flight') setFlights(prev => prev.map(f => f.id === data.id ? data : f));
+      if (type === 'stay') setStays(prev => prev.map(s => s.id === data.id ? data : s));
+      if (type === 'other') setOtherBookings(prev => prev.map(b => b.id === data.id ? data : b));
     }
+    setEditModal({ ...editModal, isOpen: false });
   };
 
   const confirmDelete = (id: string, type: 'flight' | 'stay' | 'other', title: string) => {
@@ -121,17 +155,19 @@ const Bookings: React.FC<BookingsProps> = ({ trip }) => {
   };
 
   const openEdit = (id: string, type: 'flight' | 'stay' | 'other') => {
-    const data = bookings.find(b => b.id === id);
+    let data;
+    if (type === 'flight') data = flights.find(f => f.id === id);
+    if (type === 'stay') data = stays.find(s => s.id === id);
+    if (type === 'other') data = otherBookings.find(b => b.id === id);
     if (data) setEditModal({ isOpen: true, type, data: JSON.parse(JSON.stringify(data)), isNew: false });
   };
 
-  const handleDelete = async () => {
-    try {
-      await deleteDoc(doc(db, 'bookings', deleteModal.targetId));
-      setDeleteModal({ ...deleteModal, isOpen: false });
-    } catch (e) {
-      alert("刪除失敗");
-    }
+  const handleDelete = () => {
+    const { targetId, targetType } = deleteModal;
+    if (targetType === 'flight') setFlights(prev => prev.filter(f => f.id !== targetId));
+    if (targetType === 'stay') setStays(prev => prev.filter(s => s.id !== targetId));
+    if (targetType === 'other') setOtherBookings(prev => prev.filter(b => b.id !== targetId));
+    setDeleteModal({ ...deleteModal, isOpen: false });
   };
 
   const handleUnlock = () => {
@@ -202,8 +238,8 @@ const Bookings: React.FC<BookingsProps> = ({ trip }) => {
                     <input type="time" className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-sm font-bold text-center" value={editModal.data.origin?.time || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, origin: {...(editModal.data.origin||{}), time: e.target.value}}})} />
                     <input type="time" className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-sm font-bold text-center" value={editModal.data.destination?.time || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, destination: {...(editModal.data.destination||{}), time: e.target.value}}})} />
                   </div>
-                  <input className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-sm font-bold text-center" placeholder="乘客姓名" value={editModal.data.passenger || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, passenger: e.target.value}})} />
-                  <input className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-sm font-bold text-center" placeholder="座位編號" value={editModal.data.seat || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, seat: e.target.value}})} />
+                  <input className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-sm font-bold text-center" placeholder="乘客姓名 (多人請用逗號分隔)" value={editModal.data.passenger || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, passenger: e.target.value}})} />
+                  <input className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-sm font-bold text-center" placeholder="座位編號 (對應姓名，可用逗號/空格)" value={editModal.data.seat || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, seat: e.target.value}})} />
                   <div className="grid grid-cols-2 gap-3">
                     <input className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-sm font-bold text-center" placeholder="登機門" value={editModal.data.gate || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, gate: e.target.value}})} />
                     <input type="date" className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-sm font-bold text-center" value={editModal.data.date || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, date: e.target.value}})} />
@@ -212,59 +248,86 @@ const Bookings: React.FC<BookingsProps> = ({ trip }) => {
               )}
               {editModal.type === 'stay' && (
                 <>
-                  <label className="text-[10px] font-black uppercase text-leaf-green block mb-1">飯店名稱</label>
-                  <input className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-4 py-3 text-sm font-bold" value={editModal.data.title || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, title: e.target.value}})} />
+                  <label className="text-[10px] font-black uppercase tracking-widest text-leaf-green block mb-1">飯店名稱</label>
+                  <input className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-leaf-green" placeholder="飯店名稱" value={editModal.data.title || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, title: e.target.value}})} />
+                  
                   <div className="grid grid-cols-2 gap-3">
-                    <input type="date" className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-xs font-bold" value={editModal.data.startDate || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, startDate: e.target.value}})} />
-                    <input type="date" className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-xs font-bold" value={editModal.data.endDate || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, endDate: e.target.value}})} />
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-leaf-green block mb-1">Check In</label>
+                      <input type="date" className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-xs font-bold" value={editModal.data.startDate || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, startDate: e.target.value}})} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-leaf-green block mb-1">Check Out</label>
+                      <input type="date" className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-3 py-2 text-xs font-bold" value={editModal.data.endDate || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, endDate: e.target.value}})} />
+                    </div>
                   </div>
+
+                  <label className="text-[10px] font-black uppercase tracking-widest text-leaf-green block mb-1">地址</label>
                   <input className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-4 py-3 text-sm font-bold" placeholder="地址" value={editModal.data.location || ''} onChange={e => setEditModal({...editModal, data: {...editModal.data, location: e.target.value}})} />
-                  <input type="number" className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-4 py-3 text-lg font-black" value={editModal.data.cost || 0} onChange={e => setEditModal({...editModal, data: {...editModal.data, cost: Number(e.target.value)}})} />
+                  
+                  <label className="text-[10px] font-black uppercase tracking-widest text-leaf-green block mb-1">總金額 (HK$)</label>
+                  <input type="number" className="w-full bg-warm-beige/50 border-2 border-shadow-green rounded-xl px-4 py-3 text-lg font-black text-leaf-green outline-none" placeholder="輸入金額" value={editModal.data.cost || 0} onChange={e => setEditModal({...editModal, data: {...editModal.data, cost: Number(e.target.value)}})} />
                 </>
               )}
               <div className="flex gap-3 pt-4">
                 <Button variant="secondary" className="flex-1" onClick={() => setEditModal({...editModal, isOpen: false})}>取消</Button>
-                <Button className="flex-1" onClick={handleSaveEntry}>儲存</Button>
+                <Button className="flex-1" onClick={handleSaveEntry}>儲存並更新</Button>
               </div>
             </div>
           </Card>
         </div>
       )}
 
-      <SectionTitle title="航班資訊" icon={<i className="fas fa-plane-departure"></i>} />
+      <div className="flex justify-between items-center">
+        <SectionTitle title="航班資訊" icon={<i className="fas fa-plane-departure"></i>} />
+        <button onClick={() => setIsChangingPin(!isChangingPin)} className="mt-6 w-10 h-10 rounded-xl bg-white border-2 border-shadow-green flex items-center justify-center text-earth-brown/40 active:scale-90 transition-all">
+          <i className={`fas ${isChangingPin ? 'fa-xmark' : 'fa-gear'}`}></i>
+        </button>
+      </div>
+
       <div className="mb-10 space-y-6">
-        {flights.length > 0 ? flights.map(f => (
+        {flights.map(f => (
           <FlightCard 
             key={f.id} id={f.id} airline={f.provider} flightNumber={f.title}
             origin={f.origin} destination={f.destination} passenger={f.passenger}
             classType={f.classType || "Economy"} gate={f.gate} seat={f.seat}
-            date={f.date} duration={f.duration}
+            date={f.date || f.startDate?.split(' ')[0]} duration={f.duration}
             suggestedDeparture={calculateDepartureSuggestion(f.origin?.time)}
             onDelete={() => confirmDelete(f.id, 'flight', f.title)} onEdit={() => openEdit(f.id, 'flight')}
           />
-        )) : <p className="text-center text-xs opacity-30 italic py-10">尚無航班資訊</p>}
+        ))}
       </div>
 
       <SectionTitle title="住宿資訊" icon={<i className="fas fa-hotel"></i>} />
       <div className="space-y-6 mb-10">
-        {stays.length > 0 ? stays.map(s => (
+        {stays.map(s => (
           <StayCard 
             key={s.id} id={s.id} hotelName={s.title} provider={s.provider}
             checkIn={s.startDate} checkOut={s.endDate}
             location={s.location} cost={s.cost} note={s.note}
             onDelete={() => confirmDelete(s.id, 'stay', s.title)} onEdit={() => openEdit(s.id, 'stay')}
           />
-        )) : <p className="text-center text-xs opacity-30 italic py-10">尚無住宿資訊</p>}
+        ))}
       </div>
 
       <div className="w-full">
-        <button onClick={() => openManualAdd('flight')} className="w-full py-8 border-4 border-dashed border-shadow-green/50 rounded-[2.5rem] flex flex-col items-center justify-center text-shadow-green hover:text-leaf-green bg-white/50 active:scale-95 transition-all">
+        <button onClick={() => openManualAdd('flight')}
+          className="w-full py-8 border-4 border-dashed border-shadow-green/50 rounded-[2.5rem] flex flex-col items-center justify-center text-shadow-green hover:text-leaf-green bg-white/50 active:scale-95 transition-all"
+        >
           <div className="w-12 h-12 rounded-full bg-white shadow-soft border-2 border-shadow-green flex items-center justify-center mb-2">
             <i className="fas fa-pen-nib text-xl"></i>
           </div>
           <span className="font-black text-[10px] uppercase tracking-widest">手動新增預訂</span>
         </button>
       </div>
+
+      {usePin && isUnlocked && (
+        <div className="mt-8 text-center">
+          <button onClick={() => setIsUnlocked(false)} className="text-[10px] font-bold uppercase tracking-widest text-shadow-green">
+            <i className="fas fa-lock mr-1"></i> 手動鎖定隱私區域
+          </button>
+        </div>
+      )}
     </div>
   );
 };

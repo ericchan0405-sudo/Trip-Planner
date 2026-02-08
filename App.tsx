@@ -8,7 +8,7 @@ import Planning from './tabs/Planning';
 import Members from './tabs/Members';
 import { Card, Button } from './components/UI';
 import { db } from './firebase';
-import { doc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, setDoc, query, where, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, setDoc, query, where } from 'firebase/firestore';
 
 const CURRENT_USER_ID = 'user-admin';
 
@@ -52,14 +52,14 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // 2. 監聽「所有」相關旅程
+  // 2. 監聽「所有」相關旅程 (這裡簡單化，監聽所有旅程；實際應根據成員 ID 過濾)
   useEffect(() => {
     const q = query(collection(db, 'trips'));
     const unsub = onSnapshot(q, (snapshot) => {
       const tripsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trip));
       setTrips(tripsData);
       
-      // 如果目前沒有選定旅程且有可用旅程，自動選擇第一個
+      // 如果目前沒有選定旅程，且列表有資料，預選第一個
       if (!currentTripId && tripsData.length > 0) {
         const firstId = tripsData[0].id;
         setCurrentTripId(firstId);
@@ -68,7 +68,7 @@ const App: React.FC = () => {
     });
 
     return () => unsub();
-  }, [currentTripId]);
+  }, []);
 
   // 3. 監聽「目前選定」旅程的成員與詳細變化
   useEffect(() => {
@@ -80,17 +80,11 @@ const App: React.FC = () => {
         if (data.members) {
           setMembers(data.members.map((m: any) => ({ ...m, isMe: m.id === CURRENT_USER_ID })));
         }
-      } else {
-        // 如果當前旅程被刪除且沒有剩餘旅程，重置 ID
-        if (trips.length <= 1) {
-          setCurrentTripId('');
-          localStorage.removeItem('komorebi_current_trip_id');
-        }
       }
     });
 
     return () => unsub();
-  }, [currentTripId, trips.length]);
+  }, [currentTripId]);
 
   const activeTrip = trips.find(t => t.id === currentTripId);
   const isAdmin = activeTrip?.adminId === CURRENT_USER_ID;
@@ -162,11 +156,13 @@ const App: React.FC = () => {
     
     try {
       await setDoc(doc(db, 'trips', id), newTripObj);
+      
+      // 成功後立即更新狀態
       setCurrentTripId(id);
       localStorage.setItem('komorebi_current_trip_id', id);
+      
       setShowCreateForm(false);
       setShowTripSelector(false);
-      setActiveTab(TabType.SCHEDULE);
       setNewTripData({ name: '', destination: '', startDate: '', endDate: '' });
     } catch (e) {
       alert("建立失敗：" + e);
@@ -175,51 +171,21 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDeleteTrip = async (e: React.MouseEvent, tripToDeleteId: string, tripName: string, adminId?: string) => {
-    e.stopPropagation(); // 阻止觸發選擇旅程
-    
-    if (adminId && adminId !== CURRENT_USER_ID) {
-      return alert('只有管理員可以刪除此旅程唷！');
-    }
-
-    if (confirm(`確定要刪除「${tripName}」嗎？此動作將刪除雲端所有相關資料且無法復原。`)) {
-      try {
-        await deleteDoc(doc(db, 'trips', tripToDeleteId));
-        
-        // 如果刪除的是當前正在查看的旅程，嘗試切換到下一個
-        if (currentTripId === tripToDeleteId) {
-          const remainingTrips = trips.filter(t => t.id !== tripToDeleteId);
-          if (remainingTrips.length > 0) {
-            const nextId = remainingTrips[0].id;
-            setCurrentTripId(nextId);
-            localStorage.setItem('komorebi_current_trip_id', nextId);
-          } else {
-            setCurrentTripId('');
-            localStorage.removeItem('komorebi_current_trip_id');
-          }
-        }
-        alert('旅程已成功移除。');
-      } catch (err) {
-        console.error("Delete Error:", err);
-        alert('刪除失敗，請檢查權權或網路連線。');
-      }
-    }
-  };
-
   const selectTrip = (id: string) => {
     setCurrentTripId(id);
     localStorage.setItem('komorebi_current_trip_id', id);
     setShowTripSelector(false);
-    setActiveTab(TabType.SCHEDULE);
   };
 
+  // 如果沒有行程且不是正在加入或建立，顯示啟動頁
   if (!currentTripId && trips.length === 0 && !joinModal.isOpen) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-10 text-center bg-warm-beige">
         <div className="w-24 h-24 bg-white rounded-[2rem] shadow-soft border-2 border-shadow-green flex items-center justify-center text-leaf-green mb-8 animate-bounce-soft">
           <i className="fas fa-map-location-dot text-4xl"></i>
         </div>
-        <h1 className="text-2xl font-black text-earth-brown mb-8">開始你的第一趟旅程</h1>
+        <h1 className="text-2xl font-black text-earth-brown mb-4">開始你的第一趟旅程</h1>
+        <p className="text-sm opacity-50 mb-8 px-6 leading-relaxed">木漏日 Komorebi 讓團體旅遊變得簡單、溫暖且井然有序。</p>
         <Button onClick={() => setShowCreateForm(true)}>建立新旅程</Button>
         
         {showCreateForm && (
@@ -261,6 +227,7 @@ const App: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto min-h-screen relative flex flex-col bg-warm-beige">
+      {/* Trip Selector Modal */}
       {showTripSelector && (
         <div className="fixed inset-0 z-[150] bg-earth-brown/40 backdrop-blur-md flex items-end justify-center">
           <div className="fixed inset-0" onClick={() => setShowTripSelector(false)}></div>
@@ -270,63 +237,32 @@ const App: React.FC = () => {
               <button onClick={() => setShowCreateForm(true)} className="w-10 h-10 bg-leaf-green text-white rounded-xl shadow-soft flex items-center justify-center active:scale-90 transition-all"><i className="fas fa-plus"></i></button>
             </div>
             <div className="space-y-3 max-h-[50vh] overflow-y-auto no-scrollbar pb-4">
-              {trips.length > 0 ? trips.map(t => (
+              {trips.map(t => (
                 <div 
                   key={t.id} 
                   onClick={() => selectTrip(t.id)}
-                  className={`p-4 rounded-2xl border-2 flex justify-between items-center cursor-pointer group transition-all ${t.id === currentTripId ? 'bg-leaf-green border-leaf-green text-white shadow-soft' : 'bg-white border-shadow-green text-earth-brown hover:border-leaf-green/50'}`}
+                  className={`p-4 rounded-2xl border-2 flex justify-between items-center cursor-pointer transition-all ${t.id === currentTripId ? 'bg-leaf-green border-leaf-green text-white shadow-soft' : 'bg-white border-shadow-green text-earth-brown hover:border-leaf-green/50'}`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-black text-sm truncate">{t.name}</h4>
-                    <p className={`text-[9px] uppercase font-bold truncate ${t.id === currentTripId ? 'text-white/70' : 'text-shadow-green'}`}>{t.destination} | {t.startDate}</p>
+                  <div>
+                    <h4 className="font-black text-sm">{t.name}</h4>
+                    <p className={`text-[9px] uppercase font-bold ${t.id === currentTripId ? 'text-white/70' : 'text-shadow-green'}`}>{t.destination} | {t.startDate}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {t.id === currentTripId ? (
-                      <i className="fas fa-check-circle"></i>
-                    ) : (
-                      // 只有管理員可以刪除旅程
-                      t.adminId === CURRENT_USER_ID && (
-                        <button 
-                          onClick={(e) => handleDeleteTrip(e, t.id, t.name, t.adminId)}
-                          className="w-8 h-8 rounded-lg bg-red-100 text-red-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-400 hover:text-white"
-                        >
-                          <i className="fas fa-trash-can text-xs"></i>
-                        </button>
-                      )
-                    )}
-                  </div>
+                  {t.id === currentTripId && <i className="fas fa-check-circle"></i>}
                 </div>
-              )) : (
-                <p className="text-center py-10 text-xs opacity-30 italic">目前沒有旅程</p>
-              )}
+              ))}
             </div>
           </Card>
         </div>
       )}
 
-      {showCreateForm && (
+      {/* Create Form when selector is open */}
+      {showCreateForm && showTripSelector && (
         <div className="fixed inset-0 z-[200] bg-earth-brown/50 backdrop-blur-md flex items-center justify-center p-6">
            <Card className="w-full max-w-sm animate-fadeIn !p-8">
              <h2 className="text-xl font-black text-earth-brown mb-6">建立新旅程</h2>
-             <div className="space-y-4 text-left">
-                <div>
-                    <label className="text-[10px] font-black uppercase text-leaf-green ml-1 mb-1 block">旅程名稱</label>
-                    <input placeholder="例如：日本滑雪之旅" className="w-full bg-warm-beige border-2 border-shadow-green rounded-2xl px-4 py-3 font-bold" value={newTripData.name} onChange={e => setNewTripData({...newTripData, name: e.target.value})} />
-                </div>
-                <div>
-                    <label className="text-[10px] font-black uppercase text-leaf-green ml-1 mb-1 block">目的地</label>
-                    <input placeholder="例如：北海道" className="w-full bg-warm-beige border-2 border-shadow-green rounded-2xl px-4 py-3 font-bold" value={newTripData.destination} onChange={e => setNewTripData({...newTripData, destination: e.target.value})} />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                    <div>
-                        <label className="text-[10px] font-black uppercase text-leaf-green ml-1 mb-1 block">開始日期</label>
-                        <input type="date" className="w-full bg-warm-beige border-2 border-shadow-green rounded-2xl px-3 py-3 text-xs font-bold" value={newTripData.startDate} onChange={e => setNewTripData({...newTripData, startDate: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase text-leaf-green ml-1 mb-1 block">結束日期</label>
-                        <input type="date" className="w-full bg-warm-beige border-2 border-shadow-green rounded-2xl px-3 py-3 text-xs font-bold" value={newTripData.endDate} onChange={e => setNewTripData({...newTripData, endDate: e.target.value})} />
-                    </div>
-                </div>
+             <div className="space-y-4">
+                <input placeholder="旅程名稱" className="w-full bg-warm-beige border-2 border-shadow-green rounded-2xl px-4 py-3 font-bold" value={newTripData.name} onChange={e => setNewTripData({...newTripData, name: e.target.value})} />
+                <input placeholder="目的地" className="w-full bg-warm-beige border-2 border-shadow-green rounded-2xl px-4 py-3 font-bold" value={newTripData.destination} onChange={e => setNewTripData({...newTripData, destination: e.target.value})} />
                 <div className="flex gap-2 pt-4">
                   <Button variant="secondary" className="flex-1" onClick={() => setShowCreateForm(false)}>取消</Button>
                   <Button className="flex-1" onClick={handleCreateTrip}>建立</Button>
@@ -336,6 +272,7 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Join Invite Modal */}
       {joinModal.isOpen && (
         <div className="fixed inset-0 z-[300] bg-earth-brown/60 backdrop-blur-lg flex items-center justify-center p-8">
           <Card className="w-full max-w-[300px] text-center !p-8 animate-tripSelectorIn">
@@ -344,10 +281,19 @@ const App: React.FC = () => {
             </div>
             <h3 className="text-lg font-black text-earth-brown mb-2">夥伴邀請！</h3>
             <p className="text-xs text-shadow-green font-bold mb-6">你受邀加入「{joinModal.tripName}」</p>
+            
             <div className="mb-6">
               <label className="text-[9px] font-black text-leaf-green uppercase block mb-1">輸入 4 位數入團密碼</label>
-              <input type="password" maxLength={4} placeholder="••••" className="w-full bg-warm-beige border-2 border-shadow-green rounded-2xl px-4 py-3 text-center text-xl font-black outline-none focus:border-leaf-green shadow-inner" value={joinPinInput} onChange={e => setJoinPinInput(e.target.value)} />
+              <input 
+                type="password" 
+                maxLength={4}
+                placeholder="••••"
+                className="w-full bg-warm-beige border-2 border-shadow-green rounded-2xl px-4 py-3 text-center text-xl font-black outline-none focus:border-leaf-green shadow-inner"
+                value={joinPinInput}
+                onChange={e => setJoinPinInput(e.target.value)}
+              />
             </div>
+
             <div className="flex flex-col gap-2">
               <Button className="w-full" onClick={handleJoinConfirm}>確認加入</Button>
               <button onClick={() => setJoinModal({ ...joinModal, isOpen: false })} className="text-[10px] font-bold text-shadow-green uppercase mt-2">暫時不用</button>
@@ -357,9 +303,14 @@ const App: React.FC = () => {
       )}
 
       <header className="sticky top-0 z-[60] bg-warm-beige/95 backdrop-blur-md px-6 py-5 flex justify-between items-center border-b-2 border-shadow-green/30">
-        <div className="cursor-pointer group active:scale-95 transition-transform" onClick={() => setShowTripSelector(!showTripSelector)}>
+        <div 
+          className="cursor-pointer group active:scale-95 transition-transform"
+          onClick={() => setShowTripSelector(!showTripSelector)}
+        >
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black tracking-tighter text-earth-brown leading-none">{activeTrip?.name || '加載中...'}</h1>
+            <h1 className="text-2xl font-black tracking-tighter text-earth-brown leading-none">
+              {activeTrip?.name || '加載中...'}
+            </h1>
             <i className={`fas fa-chevron-down text-[10px] text-leaf-green transition-transform duration-300 ${showTripSelector ? 'rotate-180' : ''}`}></i>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-leaf-green flex items-center gap-1 mt-1">
@@ -375,8 +326,16 @@ const App: React.FC = () => {
             {activeTab === TabType.SCHEDULE && <Schedule trip={activeTrip} />}
             {activeTab === TabType.BOOKINGS && <Bookings trip={activeTrip} />}
             {activeTab === TabType.EXPENSE && <Expense trip={activeTrip} members={members} />}
-            {activeTab === TabType.PLANNING && <Planning trip={activeTrip} members={members} />}
-            {activeTab === TabType.MEMBERS && <Members trip={activeTrip} members={members} onUpdateMember={updateMember} isAdmin={isAdmin} onUpdatePin={updateTripPin} />}
+            {activeTab === TabType.PLANNING && <Planning members={members} />}
+            {activeTab === TabType.MEMBERS && (
+              <Members 
+                trip={activeTrip} 
+                members={members}
+                onUpdateMember={updateMember}
+                isAdmin={isAdmin} 
+                onUpdatePin={updateTripPin} 
+              />
+            )}
            </>
         ) : (
           <div className="flex flex-col items-center justify-center h-64 text-earth-brown/30">
@@ -397,7 +356,9 @@ const App: React.FC = () => {
           <button
             key={item.type}
             onClick={() => setActiveTab(item.type)}
-            className={`flex flex-col items-center gap-1 transition-all relative ${activeTab === item.type ? 'text-leaf-green scale-110' : 'text-earth-brown opacity-30'}`}
+            className={`flex flex-col items-center gap-1 transition-all relative ${
+              activeTab === item.type ? 'text-leaf-green scale-110' : 'text-earth-brown opacity-30'
+            }`}
           >
             <div className={`p-2 rounded-2xl transition-all ${activeTab === item.type ? 'bg-leaf-green/10' : ''}`}>
               <i className={`fas ${item.icon} text-lg`}></i>
