@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, SectionTitle, Button } from '../components/UI';
 import FlightCard from '../components/FlightCard';
@@ -133,13 +132,16 @@ const Bookings: React.FC = () => {
       reader.onload = async () => {
         const resultBase64 = reader.result as string;
         const result = await analyzeBookingVoucher(resultBase64.split(',')[1], file.type);
-        const newEntry = { ...result, id: `book-${Date.now()}`, isPdf: file.type === 'application/pdf', fileUrl: resultBase64 };
+        // Fix: Use 'any' type to allow dynamic property assignment for origin/destination
+        const newEntry: any = { ...result, id: `book-${Date.now()}`, isPdf: file.type === 'application/pdf', fileUrl: resultBase64 };
         if (result.type === 'flight') {
+          // Fix for line 138: Assign origin properties
           newEntry.origin = { 
             code: result.location?.length === 3 ? result.location : '---', 
             city: result.location?.length === 3 ? '' : (result.location || '待確認'), 
             time: result.startDate?.includes(' ') ? result.startDate.split(' ')[1] : (result.startDate?.includes(':') ? result.startDate : '00:00')
           };
+          // Fix for line 143: Assign destination properties
           newEntry.destination = { code: '---', city: '待確認', time: result.endDate?.includes(' ') ? result.endDate.split(' ')[1] : '00:00' };
           setFlights(prev => [newEntry, ...prev]);
         } else if (result.type === 'stay') {

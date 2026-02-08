@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, SectionTitle, Button } from '../components/UI';
 import { CATEGORY_COLORS, CATEGORY_ICONS } from '../constants';
@@ -190,7 +189,7 @@ const Schedule: React.FC<ScheduleProps> = ({ trip }) => {
                               style={{ border: 0 }}
                               loading="lazy"
                               allowFullScreen
-                              src={`https://www.google.com/maps/embed/v1/place?key=REPLACE_WITH_YOUR_API_KEY&q=${encodeURIComponent(item.location)}`}
+                              src={`https://www.google.com/maps/embed/v1/place?key=${process.env.API_KEY || 'REPLACE_WITH_YOUR_API_KEY'}&q=${encodeURIComponent(item.location)}`}
                               className="grayscale-[20%] contrast-[1.1] sepia-[0.1]"
                             ></iframe>
                             {/* Overlay if No API Key or just for style */}
