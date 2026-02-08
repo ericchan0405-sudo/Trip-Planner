@@ -1,0 +1,8 @@
+{
+  "name": "Komorebi Travel Planner",
+  "description": "A warm, Japanese-journal styled group travel planner with real-time sync, expense tracking, and AI-powered itinerary assistance.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

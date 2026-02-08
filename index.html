@@ -1,0 +1,66 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Komorebi Travel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Varela+Round&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'warm-beige': '#F7F4EB',
+              'leaf-green': '#88A47C',
+              'earth-brown': '#604D3F',
+              'shadow-green': '#E0E5D5',
+              'accent-orange': '#D9A05B',
+              'soft-white': '#FFFFFF',
+            },
+            boxShadow: {
+              'soft': '4px 4px 0px #E0E5D5',
+            },
+            fontFamily: {
+              rounded: ['Varela Round', 'Noto Sans TC', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #F7F4EB;
+        background-image: radial-gradient(#E0E5D5 1px, transparent 1px);
+        background-size: 20px 20px;
+        font-family: 'Varela Round', 'Noto Sans TC', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      .boarding-pass-perforation {
+        background-image: radial-gradient(circle at 0 10px, transparent 10px, white 10px),
+                          radial-gradient(circle at 100% 10px, transparent 10px, white 10px);
+        background-position: left bottom, right bottom;
+        background-size: 50% 20px;
+        background-repeat: no-repeat;
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
+    "firebase/": "https://esm.sh/firebase@^12.9.0/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+  }
+}
+</script>
+</head>
+<body class="text-earth-brown overflow-x-hidden">
+    <div id="root"></div>
+</body>
+</html>
